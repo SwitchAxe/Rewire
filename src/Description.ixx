@@ -4,8 +4,9 @@ module;
 export module Description;
 export namespace Description {
 	namespace Blocks {
-		// dont't change Any, Either or Seq!
+		// dont't change Any, Either, Seq or Not!
 		template <class T> struct Any {};
+		template <class... Ts> struct Either {};
 		template <class... Ts> struct Seq {};
 		template <class... Ts> struct Not {}; // unimplemented
 		// everything after this line can be freely customized!
@@ -44,10 +45,7 @@ export namespace Description {
 		: std::integral_constant<bool, true> {};
 		// Next we need to assign some use to our punctuation tokens.
 		// this is done by modifying the "structure" of sentences in our
-		// language. Below are some examples of all the currently supported
-		// sentence types. Custom sentences are currently unavailable, so
-		// you can only change the default ones, but you can change them however
-		// you want to!
+		// language. Below are some examples of some possible sentence types.
 		// please note that these forms do not map 1:1 to tokens.
 		// a statement here in its default syntax is defined as
 		// "(some string)" but 'some string' can be another statement, a
@@ -56,8 +54,7 @@ export namespace Description {
 		// a class template to disable automatic usage of some forms into
 		// other forms is provided (the 'Not' template) but currently
 		// unimplemented.
-		template <class... Ts> struct Either {};
-		// the 'Either' form is only used here.
+
 		// this is the only section that doesn't actually represent
 		// anything meaningful in the target language. it's for the
 		// lexer, enabling it to determine what is valid punctuation
@@ -67,14 +64,24 @@ export namespace Description {
 									Punctuation<' '>, Punctuation<'@'>,
 									Punctuation<')'>, Punctuation<'('>>;
 
-		using Statement = Seq<Punctuation<'('>,
-							  Any<std::string>,
-							  Punctuation<')'>>;
+		using LineEndToken = Punctuation<'\n'>;
+		using LineContinuation = Seq<Punctuation<'\\'>,
+									 Punctuation<'\n'>>;
+
+		// The only builtin section that's also a template.
+		template <class... Ts>
+		using EnableLineContinuation = Any<Either<Ts..., LineContinuation>>;
+
+		// an identifier
 		using Name = Any<Not<Punctuations>>;
 		using ArgumentList = Seq<Any<Seq<Name,
 										 Punctuation<' '>>>,
 								 Name>;
-		// an identifier
+
+		using Statement = Seq<Punctuation<'('>,
+							  ArgumentList, // this doubles as a function call!
+							  Punctuation<')'>>;
+
 		using Lambda = Seq<Punctuation<'('>,
 						   ArgumentList,
 						   Punctuation<')'>, 
@@ -100,6 +107,12 @@ export namespace Description {
 										   Any<Punctuation<' '>>>>,
 								   Punctuation<'='>,
 								   Any<Statement>>;
+
+		// edit this to enable the use of all the forms you wish to lex strings
+		// against.
+		using Forms =  Either<FuncDefinition, Name, Statement,
+							  ArgumentList, Composition, ProgramPipe,
+							  Executable, Pattern, Lambda>;
 
 	}
 }

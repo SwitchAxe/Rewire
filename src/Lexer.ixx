@@ -94,28 +94,6 @@ export namespace Lexer {
 		}
 	};
 
-	// lexing of "several options", i.e. lexing of
-	// at least one/only one alternatives in a set of
-	// possibilities.
-
-	// base case
-	template <> struct Lexer<Either<>> {
-		static constexpr std::vector<Token> lex(std::string s, size_t si) {
-			return {Token{.error_field = true}};
-		}
-	};
-
-	template <class T, class... Ts>
-	struct Lexer<Either<T, Ts...>> {
-		static constexpr std::vector<Token> lex(std::string s, size_t si) {
-			// try with T. if it fails, try recursively with Ts...
-			auto ret = Lexer<T>::lex(s, si);
-			if (ret.empty()) return Lexer<Either<Ts...>>::lex(s, si);
-			if (ret[ret.size() - 1].error_field == true)
-				return Lexer<Either<Ts...>>::lex(s, si);
-			return ret;
-		}
-	};
 
 	// for debugging
 	void print_tokens(std::string label, std::vector<Token> tks) {
@@ -179,7 +157,7 @@ export namespace Lexer {
 	template <class T, class... Ts> struct Lexer<Seq<T, Ts...>> {
 		static std::vector<Token> lex(std::string s, int si) {
 			std::vector<Token> ret = Lexer<T>::lex(s, si);
-			if (ret.empty()) return {Token{.is_end_token = true}};
+			if (ret.empty()) return {Token{.error_field = true}};
 			auto last = ret.back();
 			if (last.error_field == true)
 				return {Token{.error_field = true}}; // error
@@ -191,10 +169,35 @@ export namespace Lexer {
 		}
 	};
 
-	std::optional<std::vector<Token>> dispatch(std::string s) {
-		auto lambda_lex = Lexer<Lambda>::lex(s, 0);
+	// the main Lexer. This is used both for starting the parser
+	// (a 'Form' type is just an Either<...>) and to parse an inner
+	// Either<...>.
+
+	template <> struct Lexer<Either<>> {
+		static constexpr std::vector<Token> lex(std::string s, size_t si) {
+			return {Token{.error_field = true}};
+		}
+	};
+
+	template <class T, class... Ts>
+	struct Lexer<Either<T, Ts...>> {
+		static constexpr std::vector<Token> lex(std::string s, size_t si) {
+			// try with T. if it fails, try recursively with Ts...
+			auto ret = Lexer<T>::lex(s, si);
+			if (ret.empty()) return Lexer<Either<Ts...>>::lex(s, si);
+			if (ret[ret.size() - 1].error_field == true)
+				return Lexer<Either<Ts...>>::lex(s, si);
+			return ret;
+		}
+	};
+
+	// a wrapper function for the user's convenience. You can also just
+	// use the first line of this as a standalone invocation, it does the
+	// same job.
+	std::optional<std::vector<Token>> tokenize(std::string s) {
+		auto lexed = Lexer<Forms>::lex(s, 0);
 		
-		return lambda_lex;
+		return lexed;
 	}
 
 }

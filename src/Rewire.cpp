@@ -7,6 +7,6 @@
 import Lexer;
 int main() {
     std::optional<std::vector<Lexer::Token>> tks =
-		Lexer::dispatch("(a b c d) @ foo");
+		Lexer::tokenize("(a b c d)");
 	Lexer::print_tokens("Final Tokens:", *tks);
 }
