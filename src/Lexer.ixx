@@ -28,9 +28,7 @@ export namespace Lexer {
 		std::string s;
 		Check(std::string _s = "") : s(_s) {}
 		size_t find() {
-			std::cout << "in check S = <" << s << "> and C = " << C << "\n";
 			size_t idx = s.find(C);
-			std::cout << "in check find idx = " << idx << "\n";
 			return idx;
 		}
 	};
@@ -54,7 +52,6 @@ export namespace Lexer {
 	}
 
 	Token extract_punct(std::string s, char ch, size_t si) {
-		std::cout << "searching punct for '" << ch << "'\n";
 		if (s[si] == ch) {
 			return Token{.value = std::string{ch},
 						 .is_identifier = true,
@@ -62,7 +59,6 @@ export namespace Lexer {
 						 .end_index = si+1,
 						 .line = 0};
 		}
-		std::cout << "failed to find punct!\n";
 		return Token{.error_field = true};
  	}
 
@@ -80,7 +76,6 @@ export namespace Lexer {
 						 .line = 0};
 
 		std::string tk = str.substr(0, off);
-		std::cout << "SI + OFF = " << si + off << "\n";
 		return Token{.value = tk,
 					 .is_identifier = tk[0] != '"',
 					 .is_literal = tk[0] == '"',
@@ -95,7 +90,6 @@ export namespace Lexer {
 
 	template <> struct Lexer<Not<Punctuations>> {
 		static std::vector<Token> lex(std::string s, size_t si) {
-			std::cout << "IN NOT PUNCT SI = " << si << "\n";
 			return {extract_word(s, si)};
 		}
 	};
@@ -116,7 +110,6 @@ export namespace Lexer {
 		static constexpr std::vector<Token> lex(std::string s, size_t si) {
 			// try with T. if it fails, try recursively with Ts...
 			auto ret = Lexer<T>::lex(s, si);
-			print_tokens("Either<Ts...> [start]", ret);
 			if (ret.empty()) return Lexer<Either<Ts...>>::lex(s, si);
 			if (ret[ret.size() - 1].error_field == true)
 				return Lexer<Either<Ts...>>::lex(s, si);
@@ -142,14 +135,12 @@ export namespace Lexer {
 		static std::vector<Token> lex(std::string s, int si) {
 			if (si > s.length()) return {Token{.is_end_token = true}};
 			std::vector<Token> got = Lexer<T>::lex(s, si);
-			print_tokens("got", got);
 			std::vector<Token> ret;
 			while ((got.back().error_field == false) &&
 				   (got.back().is_end_token == false)) {
 				ret = ret + got;
 				got = Lexer<T>::lex(s, got.back().end_index);
 			}
-			print_tokens("Any<T> [END]", ret);
 			return ret;
 		}
 	};
@@ -188,7 +179,6 @@ export namespace Lexer {
 	template <class T, class... Ts> struct Lexer<Seq<T, Ts...>> {
 		static std::vector<Token> lex(std::string s, int si) {
 			std::vector<Token> ret = Lexer<T>::lex(s, si);
-			print_tokens("Seq<T>", ret);
 			if (ret.empty()) return {Token{.is_end_token = true}};
 			auto last = ret.back();
 			if (last.error_field == true)
@@ -197,7 +187,6 @@ export namespace Lexer {
 			auto next = Lexer<Seq<Ts...>>::lex(s, last.end_index);
 			if (next.back().error_field) return {Token{.error_field = true}};
 			if (next.empty()) return {Token{.error_field = true}};
-			print_tokens("Seq<T> [END]", ret + next);
 			return ret + next;
 		}
 	};
