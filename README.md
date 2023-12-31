@@ -62,7 +62,7 @@ identifiers listed above must be present. You're free to
 mix and match ANY character classes or identifiers listed above
 to make your own complex grammars!**
 
-As an example, this is the default Rewind syntax for
+As an example, this is the default Rewire syntax for
 `ArgumentList`:
 
 ```cpp
