@@ -13,7 +13,7 @@ limitations.
 The basic constructs for building Rewire grammars are in place:
 - Not
   - This lets you specify which types of tokens you want to reject.
-  - Only Not<Punctuations> is currently supported.
+  - Only `Not<Punctuations>` is currently supported.
 - Either
   - It lexes Exactly one (the first found) of the specified types.
   - Fully implemented but untested.
