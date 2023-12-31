@@ -19,7 +19,7 @@ The basic constructs for building Rewire grammars are in place:
   - Fully implemented but untested.
 - Any
   - Accepts a single token type (possibly a compound one!) and
-  - lexes it over and over until it can't no more.
+  - lexes it over and over until it can't anymore.
   - Example (for more, see the wiki):
     - `Any<Seq<std::string, Punctuation<' '>>>`
     - The snippet above lexes (multiple instances of) any string
