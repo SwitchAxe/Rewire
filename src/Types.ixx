@@ -52,20 +52,20 @@ export namespace Types {
 	// a list literal
 	template <> struct Symbol<Type::List> {
 		Type type = Type::List;
-		std::list <std::variant<Symbol<Type::Number>,
-			Symbol<Type::Identifier>,
-			Symbol<Type::String>,
-			Symbol<Type::Boolean>,
-			Symbol<Type::List>,
-			Symbol<Type::Function>>> value;
+		std::list<std::variant<std::monostate,
+								Symbol<Type::Number>,
+								Symbol<Type::Identifier>,
+								Symbol<Type::String>,
+								Symbol<Type::Boolean>,
+								Symbol<Type::List>,
+								Symbol<Type::Function>>> value;
 		auto eval() -> Symbol { return *this; }
 	};
-	// forward declare AnyType
-	struct AnyType;
 	// a function call
 	template <> struct Symbol<Type::Function> {
 		Type type = Type::Function;
-		using _Type = std::variant<Symbol<Type::Number>,
+		using _Type = std::variant<std::monostate,
+								   Symbol<Type::Number>,
 								   Symbol<Type::Identifier>,
 								   Symbol<Type::String>,
 								   Symbol<Type::Boolean>,

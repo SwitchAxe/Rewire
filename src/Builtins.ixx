@@ -5,9 +5,9 @@ module;
 #include <variant>
 #include <ranges>
 #include <stdexcept>
+export module Builtins;
 import Types;
 import Utility;
-export module Builtins;
 export namespace Builtins {
 	// a few basic operators
 	constexpr Types::Symbol<Types::Type::Number>
@@ -95,12 +95,13 @@ Symbol<Type::Function>::_Type Symbol<Type::Function>::eval() {
 	using T = Symbol<Type::Function>::_Type;
 	return
 		Builtins::Call::call(Symbol<Type::Function>
-							  {.value =
-								 this->value |
-								 std::ranges::views::transform(
-									 [](auto x) -> T
-									   { return
-											std::visit([](auto y) -> T
-												{ return y.eval(); },
-												x); }) |
-								 Utility::To::to<decltype(this->value)>()}); }
+	{.value =
+			this->value |
+			std::ranges::views::transform(
+				[](auto x) -> T
+				{ return
+				std::visit([](auto y) -> T
+					{ if constexpr (std::is_same_v<decltype(y), std::monostate>)
+									throw std::logic_error{ "Uncaught monostate" };
+					  else return y.eval(); }, x); }) |
+			Utility::To::to<decltype(this->value)>()}); }

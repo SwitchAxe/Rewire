@@ -9,7 +9,7 @@ import Description;
 import Utility;
 export namespace Lexer {
 	// PUNCTUATION TOKENS CANNOT BE PART OF IDENTIFIERS!!!!!
-	using namespace Description::Blocks;
+	using namespace Description::Lexer;
 
 	struct Token {
 		std::string value;
@@ -84,11 +84,12 @@ export namespace Lexer {
 	}
 
 	template <class T>
-	struct Lexer {};
+	struct Lexer { using type = Seq<>; };
 
 	// lexing by exclusion of character classes
 
 	template <> struct Lexer<Not<Punctuations>> {
+		using type = Not<Punctuations>;
 		static std::vector<Token> lex(std::string s, size_t si) {
 			return {extract_word(s, si)};
 		}
@@ -110,6 +111,7 @@ export namespace Lexer {
 	// (T is possibly a seq or other compound stuff)
 	template <class T>
 	struct Lexer<Any<T>> {
+		using type = Any<T>;
 		static std::vector<Token> lex(std::string s, int si) {
 			if (si > s.length()) return {Token{.is_end_token = true}};
 			std::vector<Token> got = Lexer<T>::lex(s, si);
@@ -126,6 +128,7 @@ export namespace Lexer {
 	// Lexing of strings
 
 	template <> struct Lexer<std::string> {
+		using type = std::string;
 		static std::vector<Token> lex(std::string s, int si) {
 			return {extract_word(s, si)};
 		}
@@ -133,6 +136,7 @@ export namespace Lexer {
 
 	// Lexing of punctuation characters
 	template <char C> struct Lexer<Punctuation<C>> {
+		using type = Punctuation<C>;
 		static constexpr std::vector<Token> lex(std::string s, int si) {
 			return {extract_punct(s, C, si)};
 		}
@@ -143,6 +147,7 @@ export namespace Lexer {
 
 	// base case of the recursion
 	template <class T> struct Lexer<Seq<T>> {
+		using type = Seq<T>;
 		static std::vector<Token> lex(std::string s, int si) {
 			std::vector<Token> ret = Lexer<T>::lex(s, si);
 			if (ret.empty()) return {Token{.is_end_token = true}};
@@ -155,6 +160,7 @@ export namespace Lexer {
 
 
 	template <class T, class... Ts> struct Lexer<Seq<T, Ts...>> {
+		using type = Seq<T, Ts...>;
 		static std::vector<Token> lex(std::string s, int si) {
 			std::vector<Token> ret = Lexer<T>::lex(s, si);
 			if (ret.empty()) return {Token{.error_field = true}};
@@ -174,6 +180,7 @@ export namespace Lexer {
 	// Either<...>.
 
 	template <> struct Lexer<Either<>> {
+		using type = Either<>;
 		static constexpr std::vector<Token> lex(std::string s, size_t si) {
 			return {Token{.error_field = true}};
 		}
@@ -181,6 +188,7 @@ export namespace Lexer {
 
 	template <class T, class... Ts>
 	struct Lexer<Either<T, Ts...>> {
+		using type = Either<T, Ts...>;
 		static constexpr std::vector<Token> lex(std::string s, size_t si) {
 			// try with T. if it fails, try recursively with Ts...
 			auto ret = Lexer<T>::lex(s, si);
