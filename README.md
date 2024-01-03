@@ -11,6 +11,7 @@ semantics of your own programming language, with next to no
 limitations.
 # How complete is it at the moment?
 The basic constructs for building Rewire grammars are in place:
+## Lexer
 - Not
   - This lets you specify which types of tokens you want to reject.
   - Only `Not<Punctuations>` is currently supported.
@@ -33,6 +34,25 @@ The basic constructs for building Rewire grammars are in place:
       keep parsing that `Any` until it can't anymore, and then
       it will move on. There can be multiple `Any`s in a `Seq`.
   - Fully implemented and tested.
+
+## Parser
+
+- List
+  - Accepts a series of token types, and parses each one of them
+    exactly once. Effectively equivalent to a lexer's `Seq`.
+- Repeat
+  - Just like a lexer's `Any`.
+- Ignore
+  - Used to forget about a specific token in a specific position
+  - in a `List` or other control flow tokens:
+    - `List<Ignore<Punctuation<'('>>, Name, Punctuation<')'>>`
+      ignores a '(' and a ')' at the end of the above List.
+      They will not be present in the generated AST, so it's
+      useful to remove arbitrary syntax and only keep its meaning.
+- Punctuation/Punctuations
+  - They work just like in the lexer, but with parsing in mind.
+- Not
+  - It works just like in the lexer.
 
 In `Description.ixx` you'll see a bunch of stuff explicitly not
 supposed to be edited by the user. Don't touch that. Later, you'll
@@ -75,15 +95,31 @@ using Forms =  Either<FuncDefinition, Name, Statement,
 					  Executable, Pattern, Lambda>;
 ```
 
+For the parser, instead, you'll need to not think about what
+lexical form your phrases have, but instead what's their semantics.
+The way to do this is by (details are in `Descriptions.ixx` as
+always) defining specific instances of a provided struct with
+a description of how each token type must be parsed:
+
+```cpp
+template <> struct Describe<Statement> {
+  using what = List<Ignore<Punctuation<'('>>
+                    ArgumentList,
+                    Name,
+                    Ignore<Punctuation<')'>>>;
+};
+  
+```
+
+Above is the definition of the structure of a "statement" in the
+default Rewire language. It's basically an unparsed '(' followed
+by an ArgumentList (which, in reality, also contains the function
+name!), another argument, and ends with a closing ')'.
+Only `ArgumentList` and `Name` will be in the final AST.
+
 # So... does it work?
-Kinda. The lexer generator works with no problem with the default
-configuration, But more testing is needed. Next,
-when everything will work good enough, i'll make the parser
-generator (would it be better to make it a standard tree-like
-AST generator? Or leave the choice of the intermediate
-representation to the user?...) and then the
-visitor with a bunch of builtin functions, enough to make it
-complete without too much predefined stuff.
+The lexer and parser are mostly in place. The only thing really
+left is the visitor.
 
 # What if i want to ask questions not answered here?
 See the wiki (TODO) or open an issue, or contact me on Telegram
