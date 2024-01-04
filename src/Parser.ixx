@@ -124,6 +124,23 @@ export namespace Parser {
 	};
 
 
+	template <class T, class... Ts> struct Parser<P::List<P::Optional<T>, Ts...>> {
+		static std::optional<Symbol<Type::List>>
+		parse(std::vector<Lexer::Token> v, size_t& si) {
+			if (si >= v.size()) return std::nullopt;
+			// silently move on if Optional<T> fails to parse.
+			size_t si_cpy = si;
+			auto maybe = Parser<T>::parse(v, si);
+			if (maybe != std::nullopt) {
+				auto others = Parser<P::List<Ts...>>::parse(v, si);
+				if (others == std::nullopt) return std::nullopt;
+				return (*maybe) + (*others);
+			}
+			si = si_cpy;
+			return Parser<P::List<Ts...>>::parse(v, si);
+		}
+	};
+
 	template <class T> struct Parser<P::Repeat<T>> {
 		static std::optional<Symbol<Type::List>>
 		parse(std::vector<Lexer::Token> v, size_t& si) {

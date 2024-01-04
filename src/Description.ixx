@@ -35,7 +35,7 @@ export namespace Description {
 									Punctuation<' '>, Punctuation<'@'>,
 									Punctuation<')'>, Punctuation<'('>,
 									Punctuation<':'>, Punctuation<'\\'>,
-									Punctuation<'\n'>>;
+									Punctuation<'\n'>, Punctuation<'#'>>;
 
 		using LineEndToken = Punctuation<'\n'>;
 		using LineContinuation = Seq<Punctuation<'\\'>,
@@ -93,6 +93,10 @@ export namespace Description {
 		
 		// please use these according to the instructions found later.
 		template <class Ts> struct Repeat {}; // Any<T> but for the parser
+		// Optional either parses T successfully or silently moves on. e.g.
+		// List<Optional<a>, b, c> either parses [a, b, c] or [b, c].
+		// Repeat<Optional<T>> is illegal.
+		template <class T> struct Optional {};
 		template <class... Ts> struct List {};
 		// A List, but wraps (nests) its arguments.
 		// totally equivalent to List<List<Ts...>> but less ugly.
@@ -143,8 +147,8 @@ export namespace Description {
 			// your form describes. In this case, it describes a list
 			// recursively composed of statements or other expressions.
 			using what = List<Ignore<Punctuation<'('>>,
-							  ArgumentList,
-							  Name,
+							  Optional<List<ArgumentList,
+											Name>>,
 							  Ignore<Punctuation<')'>>>;
 		};
 
@@ -165,35 +169,95 @@ export namespace Description {
 			// an executable can have as arguments
 			// an argument list, a statement, ...
 			// that is, any argument a statement accepts:
-			using what = List<Punctuation<'$'>, Name, ArgumentList, Name>;
+			using what = List<Punctuation<'$'>, Name, Optional<List<ArgumentList, Name>>>;
 		};
 
 		template <> struct Describe<FuncDefinition> {
-			using what = List<Name, List<Name>, Punctuation<'='>,
-							  List<Repeat<Either<Statement, Executable,
-											  ProgramPipe, Composition>>>>;
+			using what = List<Name,
+							  Optional<Repeat<Name>>,
+							  Punctuation<'='>,
+							  Repeat<Argument>>;
 		};
 
 		template <> struct Describe<Composition> {
 			using what = List<Name,
-							  Repeat<List<Punctuation<'+'>, Name>>,
-							  Repeat<ArgumentList>>;
+							  Optional<List<ArgumentList,
+											Argument>>,
+							  Repeat<List<Punctuation<'+'>,
+										  Name,
+										  Optional<List<ArgumentList,
+														Argument>>>>>;
 		};
 
 		template <> struct Describe<ProgramPipe> {
 			using what = List<Executable,
-							  Repeat<ArgumentList>,
+							  Repeat<Optional<List<ArgumentList, Argument>>>,
 							  Repeat<List<Punctuation<'|'>,
 									   Executable,
-									   Repeat<ArgumentList>>>,
+									   Repeat<Optional<List<ArgumentList, Argument>>>>>,
 							  Repeat<ArgumentList>>;
 		};
 
 		template <> struct Describe<Pattern> {
-			using what = List<Punctuation<'|'>,
+			using what = List<Punctuation<'#'>,
 							  Name,
 							  Punctuation<':'>,
 							  Repeat<Statement>>;
 		};
+	}
+
+	namespace Eval {
+		// This is the last namespace. Here you're gonna tell the visitor which
+		// token types have special meaning, and which meaning they have.
+		// these are useful so that a function definition and
+		// a program call are not evaluated in the same way.
+		struct None {};
+		// this is the struct we're going to assign stuff to.
+		template <class T> struct Meaning { using what = None; };
+		// The first T is a function name.
+		// The subsequent two Ts are two lists, one of
+		// arguments to the function, and the other of
+		// statements of the function.
+		// remove this if your language doesn't have
+		// function definition.
+		template <class... Ts> struct Let {};
+
+		// a program call. Remove this if your language doesn't do
+		// program calls.
+		// the structure is a name and other Ts as
+		// the arguments of the program.
+		template <class... Ts> struct Exec {};
+
+		// statements. Remove this if your language doesn't have
+		// statements. same structure as Exec
+		template <class... Ts> struct State {};
+
+		// First is the first element in the parsed list.
+		// Rest is the rest of the list. They can be chained.
+		struct First {};
+		struct Rest {};
+		// now we can define meaning for a number of Rewire forms (these are
+		// the default ones, feel free to change or remove them if needed)
+		using namespace Lexer;
+		using namespace Parser;
+		template <> struct Meaning<Statement> {
+			// notice that we don't need to explicitly ignore
+			// punctuation marks, since they've been
+			// removed by the parser!
+			using what = State<First, Rest>;
+		};
+
+		template <> struct Meaning<Executable> {
+			using what = State<List<Punctuation<'$'>, Name>,
+							   Rest>;
+		};
+
+		template <> struct Meaning<FuncDefinition> {
+			// collect arguments before a '=', then skip it, and put
+			// the rest (the statements) into a list.
+			using what = Let<Repeat<Not<Punctuation<'='>>>, Rest>;
+		};
+		
+
 	}
 }
