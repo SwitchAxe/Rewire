@@ -6,6 +6,8 @@ module;
 #include <variant>
 #include <stdexcept>
 #include <iostream>
+#include <charconv>
+#include <system_error>
 export module Parser;
 import Lexer;
 import Description;
@@ -158,14 +160,14 @@ export namespace Parser {
 		}
 	};
 
-
-	template <class T> struct Charset {};
-	template <> struct Charset<L::Either<>> {
-		static constexpr bool contains(char c) { return false; }
-	};
-	template <char C, char... Cs> struct Charset<L::Either<L::Punctuation<C>, L::Punctuation<Cs>...>> {
-		static constexpr bool contains(char c) {
-			return (c == C) || Charset<L::Either<L::Punctuation<Cs>...>>::contains(c);
+	template <> struct Parser<P::String> {
+		static std::optional<Symbol<Type::String>>
+			parse(std::vector<Lexer::Token> v, size_t& si) {
+			if (si >= v.size()) return std::nullopt;
+			if (v[si].value[0] != '"') return std::nullopt;
+			auto s = v[si].value;
+			si++;
+			return Symbol<Type::String>{.value = s.substr(1, s.length() - 2)};
 		}
 	};
 
@@ -179,9 +181,47 @@ export namespace Parser {
 		}
 	};
 
+	template <> struct Parser<P::Number> {
+		static std::optional<Symbol<Type::Number>>
+			parse(std::vector<Lexer::Token> v, size_t& si) {
+			if (si >= v.size()) return std::nullopt;
+			auto s = v[si].value;
+			si++;
+			signed long long int n = 0;
+			auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), n);
+			if (ec == std::errc()) return Symbol<Type::Number>{.value = n};
+			if (ec == std::errc::result_out_of_range)
+				throw std::logic_error{ "Number " + s + " out of range!\n" };
+			return std::nullopt;
+		}
+	};
+
+	template <> struct Parser<P::Boolean> {
+		static std::optional<Symbol<Type::Boolean>>
+		parse(std::vector<Lexer::Token> v, size_t& si) {
+			if (si >= v.size()) return std::nullopt;
+			std::string s = v[si].value;
+			si++;
+			if (s == "true") return Symbol<Type::Boolean>{.value = true};
+			if (s == "false") return Symbol<Type::Boolean>{.value = false};
+			return std::nullopt;
+		}
+	};
+
+	template <class T> struct Charset {};
+	template <> struct Charset<L::Either<>> {
+		static constexpr bool contains(char c) { return false; }
+	};
+	template <char C, char... Cs> struct Charset<L::Either<L::Punctuation<C>, L::Punctuation<Cs>...>> {
+		static constexpr bool contains(char c) {
+			return (c == C) || Charset<L::Either<L::Punctuation<Cs>...>>::contains(c);
+		}
+	};
+
+
 	template <> struct Parser<L::Not<L::Punctuations>> {
 		static std::optional<Generic>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+			parse(std::vector<Lexer::Token> v, size_t& si) {
 			if (v[si].value.length() > 1)
 				return Parser<P::Identifier>::parse(v, si);
 			if (Charset<L::Punctuations>::contains(v[si].value[0]))
@@ -196,14 +236,6 @@ export namespace Parser {
 			parse(std::vector<Lexer::Token> v, size_t& si) {
 			if (v[si].value != std::string{ C }) return std::nullopt;
 			return Parser<P::Identifier>::parse(v, si);
-		}
-	};
-
-	template <> struct Parser<P::Literal> {
-		static std::optional<Generic>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
-			si++;
-			return Symbol<Type::String>{.value = v[si].value};
 		}
 	};
 
@@ -227,7 +259,7 @@ export namespace Parser {
 
 	std::optional<Generic> get_ast(std::vector<Lexer::Token> v) {
 		size_t start = 0;
-		return Parser<L::Statement>::parse(v, start);
+		return Parser<L::Forms>::parse(v, start);
 	}
 
 
