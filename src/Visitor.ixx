@@ -12,6 +12,8 @@ import Parser;
 export namespace Visitor{
 	using Generic = Types::Symbol<Types::Type::Function>::_Type;
 	using namespace Description::Eval;
+	namespace L = Description::Lexer;
+	namespace P = Description::Parser;
 	std::stack<std::map<std::string, Generic>> identifiers;
 
 	using namespace Types;
@@ -47,6 +49,16 @@ export namespace Visitor{
 		return rhs;
 	}
 
+	template <class T> struct Charset {};
+	template <> struct Charset<L::Either<>> {
+		static constexpr bool contains(char c) { return false; }
+	};
+	template <char... Cs> struct Charset<L::Either<L::Punctuation<Cs>...>> {
+		static constexpr bool contains(char c) {
+			return ((c == Cs) || ...);
+		}
+	};
+
 	template <class T> struct Visitor {
 		static std::optional<Generic> visit(Generic ast) {
 			return Visitor<T::what>::visit(ast);
@@ -78,6 +90,13 @@ export namespace Visitor{
 
 	template <> struct Visitor<Description::Eval::Any> {
 		static std::optional<Generic> visit(Generic ast) {
+			// check if we have a punctuation token...
+			if (!std::holds_alternative<Symbol<Type::Identifier>>(ast))
+				return ast;
+			auto id = std::get<Symbol<Type::Identifier>>(ast);
+			if (id.value.size() != 1) return ast;
+			if (Charset<L::Punctuations>::contains(id.value[0]))
+				return std::nullopt;
 			return ast;
 		}
 	};

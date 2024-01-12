@@ -157,8 +157,7 @@ export namespace Description {
 			// your form describes. In this case, it describes a list
 			// recursively composed of statements or other expressions.
 			using what = List<Ignore<Punctuation<'('>>,
-							  Optional<List<ArgumentList,
-											Argument>>,
+							  Optional<ArgumentList>,
 							  Ignore<Punctuation<')'>>>;
 		};
 
@@ -217,7 +216,7 @@ export namespace Description {
 		// (for custom meanings, TODO)
 		template <class T> struct Meaning { using what = None; };
 
-		// Any means Any symbol type is accepted.
+		// Any means Any symbol type is accepted. (stops at punctuation tokens)
 		struct Any {};
 
 		// modify the structs below to have their respective
@@ -261,6 +260,13 @@ export namespace Description {
 
 		template <> struct Meaning<Statement> {
 			using what = State<Identifier, Repeat<Any>>;
+		};
+
+		template <> struct Meaning<Composition> {
+			using what = State<Identifier,
+							   Repeat<List<Repeat<Any>,
+										   Punctuation<'|'>,
+										   Identifier>>>;
 		};
 
 		// choose which Meaning specializations to use.
