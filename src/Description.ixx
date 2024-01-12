@@ -67,10 +67,7 @@ export namespace Description {
 								Any<std::string>,
 								Punctuation<':'>,
 								Any<Statement>>>;
-		using Executable = Seq<Punctuation<'$'>, Name>;
-		using ProgramPipe = Seq<Any<Seq<Executable,
-										Punctuation<'|'>>>,
-								Executable>;
+
 		using Composition = Seq<Statement,
 								Any<Seq<Punctuation<'+'>,
 										Name>>>;
@@ -87,15 +84,12 @@ export namespace Description {
 									   Either<Name,
 											  Statement,
 											  Composition,
-											  ProgramPipe,
-											  Pattern,
-											  Executable>>;
+											  Pattern>>;
 
 		// edit this to enable the use of all the forms you wish to lex strings
 		// against.
 		using Forms =  Either<FuncDefinition, Name, Statement,
-							  ArgumentList, Composition, ProgramPipe,
-							  Executable, Pattern, Lambda,
+							  ArgumentList, Composition, Pattern, Lambda,
 							  VariableDefinition>;
 
 	}
@@ -155,8 +149,7 @@ export namespace Description {
 
 		using Literal = Either<String, Number, Boolean>;
 
-		using Argument = Either<Statement, Executable, Literal, Name,
-								ProgramPipe, Composition, Pattern>;
+		using Argument = Either<Statement, Literal, Name, Composition, Pattern>;
 
 
 		template <> struct Describe<Statement> {
@@ -181,19 +174,12 @@ export namespace Description {
 			// the same logic applies here. Clearly an argument list
 			// can't contain another argument list.
 			using what = Repeat<List<Argument,
-									   Ignore<Punctuation<' '>>>>;
+									   Optional<Ignore<Repeat<Punctuation<' '>>>>>>;
 		};
 
 		template <> struct Describe<Name> {
 			// Names are just Identifiers
 			using what = Not<Punctuations>;
-		};
-
-		template <> struct Describe<Executable> {
-			// an executable can have as arguments
-			// an argument list, a statement, ...
-			// that is, any argument a statement accepts:
-			using what = List<Punctuation<'$'>, Name, Optional<List<ArgumentList, Name>>>;
 		};
 
 		template <> struct Describe<FuncDefinition> {
@@ -204,22 +190,11 @@ export namespace Description {
 		};
 
 		template <> struct Describe<Composition> {
-			using what = List<Name,
-							  Optional<List<ArgumentList,
-											Argument>>,
-							  Repeat<List<Punctuation<'+'>,
-										  Name,
-										  Optional<List<ArgumentList,
-														Argument>>>>>;
-		};
-
-		template <> struct Describe<ProgramPipe> {
-			using what = List<Executable,
-							  Repeat<Optional<List<ArgumentList, Argument>>>,
+			using what = List<Statement,
+							  Optional<ArgumentList>,
 							  Repeat<List<Punctuation<'|'>,
-									   Executable,
-									   Repeat<Optional<List<ArgumentList, Argument>>>>>,
-							  Repeat<ArgumentList>>;
+										  Statement,
+									      Optional<ArgumentList>>>>;
 		};
 
 		template <> struct Describe<Pattern> {
@@ -273,14 +248,9 @@ export namespace Description {
 		// can be available to the variable.
 		template <class... Ts> struct Var {};
 
-		// a program call. don't use this if your language doesn't do
-		// program calls.
-		// the structure is a name and other Ts as
-		// the arguments of the program.
-		template <class... Ts> struct Exec {};
-
 		// statements. don't use this if your language doesn't have
-		// statements. same structure as Exec
+		// statements. The structure of State is an token type
+		// fitting for identifiers, and some form of list as arguments.
 		template <class... Ts> struct State {};
 
 		// First is the first element in the parsed list.
