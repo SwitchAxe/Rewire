@@ -80,11 +80,23 @@ export namespace Description {
 								   Punctuation<'='>,
 								   Any<Statement>>;
 
+		using VariableDefinition = Seq<Name,
+									   Any<Punctuation<' '>>,
+									   Punctuation<'='>,
+									   Any<Punctuation<' '>>,
+									   Either<Name,
+											  Statement,
+											  Composition,
+											  ProgramPipe,
+											  Pattern,
+											  Executable>>;
+
 		// edit this to enable the use of all the forms you wish to lex strings
 		// against.
 		using Forms =  Either<FuncDefinition, Name, Statement,
 							  ArgumentList, Composition, ProgramPipe,
-							  Executable, Pattern, Lambda>;
+							  Executable, Pattern, Lambda,
+							  VariableDefinition>;
 
 	}
 
@@ -103,8 +115,10 @@ export namespace Description {
 		// List<a, b, List<c, d>> = [a, b, c, d]
 		// List<a, b, Wrap<c, d>> = [a, b, [c, d]]
 		template <class... Ts> struct Wrap {};
-		struct Identifier {};
-		struct Literal {};
+		struct Identifier {}; //identifiers
+		struct String {}; // string literals
+		struct Number {}; // numeric literals
+		struct Boolean {}; // bool literals: "true" and "false"
 		// ignore whatever token is found at that position in the
 		// tree (see the next structs), used primarily for punctuation
 		// in the default grammar, but it can be used for more complex
@@ -138,7 +152,10 @@ export namespace Description {
 		// you'll need to define it in the Lexer namespace above and
 		// possibly (depending on your goal) add it to the Forms
 		// directive!
-		using Argument = Either<Statement, Executable, Name,
+
+		using Literal = Either<String, Number, Boolean>;
+
+		using Argument = Either<Statement, Executable, Literal, Name,
 								ProgramPipe, Composition, Pattern>;
 
 
@@ -148,10 +165,17 @@ export namespace Description {
 			// recursively composed of statements or other expressions.
 			using what = List<Ignore<Punctuation<'('>>,
 							  Optional<List<ArgumentList,
-											Name>>,
+											Argument>>,
 							  Ignore<Punctuation<')'>>>;
 		};
 
+		template <> struct Describe<VariableDefinition> {
+			using what = List<Name,
+							  Optional<Repeat<Punctuation<' '>>>,
+							  Punctuation<'='>,
+							  Optional<Repeat<Punctuation<' '>>>,
+							  Argument>;
+		};
 
 		template <> struct Describe<ArgumentList> {
 			// the same logic applies here. Clearly an argument list
@@ -211,53 +235,67 @@ export namespace Description {
 		// token types have special meaning, and which meaning they have.
 		// these are useful so that a function definition and
 		// a program call are not evaluated in the same way.
+		using namespace Parser;
+
 		struct None {};
 		// this is the struct we're going to assign stuff to.
+		// (for custom meanings, TODO)
 		template <class T> struct Meaning { using what = None; };
-		// The first T is a function name.
-		// The subsequent two Ts are two lists, one of
+
+		// Any means Any symbol type is accepted.
+		struct Any {};
+
+		// modify the structs below to have their respective
+		// meanings mapped 1:1 to a token sequence template.
+		// remember: you're free to use any class from the parser.
+		// in particular, you can use Boolean, Number, etc.
+		// The way these works is that for each type, the visitor
+		// checks the AST produced by your parser, and chooses
+		// **the first match** as the meaning to visit.
+		// in each of these templates, you can freely choose which
+		// types are used, in which order, and amount.
+		// however, the structure must be followed.
+		// some examples will clarify this.
+
+		// The first Type is a function name.
+		// The subsequent two types are two lists, one of
 		// arguments to the function, and the other of
 		// statements of the function.
-		// remove this if your language doesn't have
-		// function definition.
+		// delete/don't use this if your language doesn't have
+		// function definitions.
 		template <class... Ts> struct Let {};
 
-		// a program call. Remove this if your language doesn't do
+		// In order the types are:
+		// a type to use for the identifier;
+		// a type to use for the type of the variable;
+		// a type (possibly `Any`) to use for the value.
+		// if the second type is not present, any value type
+		// can be available to the variable.
+		template <class... Ts> struct Var {};
+
+		// a program call. don't use this if your language doesn't do
 		// program calls.
 		// the structure is a name and other Ts as
 		// the arguments of the program.
 		template <class... Ts> struct Exec {};
 
-		// statements. Remove this if your language doesn't have
+		// statements. don't use this if your language doesn't have
 		// statements. same structure as Exec
 		template <class... Ts> struct State {};
 
 		// First is the first element in the parsed list.
-		// Rest is the rest of the list. They can be chained.
+		// Rest is the rest of the list.
+		// both of them automatically get evaluated before being used.
 		struct First {};
 		struct Rest {};
-		// now we can define meaning for a number of Rewire forms (these are
-		// the default ones, feel free to change or remove them if needed)
-		using namespace Lexer;
-		using namespace Parser;
+
 		template <> struct Meaning<Statement> {
-			// notice that we don't need to explicitly ignore
-			// punctuation marks, since they've been
-			// removed by the parser!
-			using what = State<First, Rest>;
+			using what = State<Identifier, Repeat<Any>>;
 		};
 
-		template <> struct Meaning<Executable> {
-			using what = State<List<Punctuation<'$'>, Name>,
-							   Rest>;
-		};
+		// choose which Meaning specializations to use.
+		using ToEval = Either<Meaning<Statement>>;
 
-		template <> struct Meaning<FuncDefinition> {
-			// collect arguments before a '=', then skip it, and put
-			// the rest (the statements) into a list.
-			using what = Let<Repeat<Not<Punctuation<'='>>>, Rest>;
-		};
-		
 
 	}
 }

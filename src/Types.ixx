@@ -19,7 +19,7 @@ export namespace Types {
 
 	template <> struct Symbol<Type::Number> {
 		Type type = Type::Number;
-		unsigned long long int value = 0;
+		signed long long int value = 0;
 		bool is_root = false;
 
 		auto eval() -> Symbol { return *this; }

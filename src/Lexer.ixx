@@ -65,6 +65,20 @@ export namespace Lexer {
 	// token extraction functions
 	Token extract_word(std::string s, size_t si) {
 		if (si >= s.length()) return Token{.is_end_token = true};
+
+		// first check for a string literal
+		if (s[si] == '"') {
+			auto strlit_idx = s.find('"', si + 1);
+			if (strlit_idx != std::string::npos) {
+				auto ss = s.substr(si, strlit_idx - si + 1);
+				return Token{ .value = ss,
+							 .is_identifier = false,
+							 .is_literal = true,
+							 .end_index = strlit_idx + 1,
+							 .line = 0 };
+			}
+			return Token{ .error_field = true };
+		}
 		std::string str = s.substr(si);
 		size_t off = Check<Punctuations>(str).find();
 		if (off == 0) return Token{.error_field = true};

@@ -5,6 +5,7 @@ module;
 #include <variant>
 #include <ranges>
 #include <stdexcept>
+#include <numeric>
 export module Builtins;
 import Types;
 import Utility;
@@ -54,6 +55,18 @@ export namespace Builtins {
 			l.value.pop_front();
 			return l;
 		}
+
+		static Func::_Type
+		plus(Types::Symbol<Types::Type::List> l) {
+			signed long long int init = 0;
+			for (Func::_Type x : l.value) {
+				Types::Symbol<Types::Type::Number> e =
+					std::get<Types::Symbol<Types::Type::Number>>(x);
+				init += e.value;
+			}
+			return Types::Symbol<Types::Type::Number> {.value = init};
+		}
+
 	};
 	using Func = Types::Symbol<Types::Type::Function>;
 	using Signature =
@@ -61,6 +74,7 @@ export namespace Builtins {
 	std::map<std::string, Signature> procedures = {
 		{"first", Functions::first},
 		{"rest", Functions::rest},
+		{"plus", Functions::plus}
 	};
 
 	// Call a builtin function (for user-defined functions, use
@@ -81,10 +95,7 @@ export namespace Builtins {
 			// create a List Literal with the contents of the function call
 			// f:
 			Symbol<Type::List> l = {.value = f.value};
-			if (name == "first") {
-				return Functions::first(l);
-			}
-			throw std::logic_error{"placeholder!\n"};
+			return procedures[name](l);
 		}
 	}
 }
