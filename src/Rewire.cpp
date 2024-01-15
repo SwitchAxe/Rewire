@@ -11,7 +11,7 @@ import Types;
 using Generic = Types::Symbol<Types::Type::Function>::_Type;
 int main() {
     std::optional<std::vector<Lexer::Token>> tks =
-		Lexer::tokenize("(plus 1 2 3 69)");
+		Lexer::tokenize("(plus 1 2) | (plus 3 4)");
 	Lexer::print_tokens("Final Tokens:", *tks);
 	try {
 		auto ast = Parser::get_ast(*tks);

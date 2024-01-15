@@ -69,8 +69,10 @@ export namespace Description {
 								Any<Statement>>>;
 
 		using Composition = Seq<Statement,
-								Any<Seq<Punctuation<'+'>,
-										Name>>>;
+								Any<Seq<Any<Punctuation<' '>>,
+										Punctuation<'|'>,
+										Any<Punctuation<' '>>,
+										Statement>>>;
 		using FuncDefinition = Seq<Name,
 								   Any<Seq<Name,
 										   Any<Punctuation<' '>>>>,
@@ -104,11 +106,11 @@ export namespace Description {
 		// Repeat<Optional<T>> is illegal.
 		template <class T> struct Optional {};
 		template <class... Ts> struct List {};
-		// A List, but wraps (nests) its arguments.
-		// totally equivalent to List<List<Ts...>> but less ugly.
+		// Wraps its argument into a List.
 		// List<a, b, List<c, d>> = [a, b, c, d]
-		// List<a, b, Wrap<c, d>> = [a, b, [c, d]]
-		template <class... Ts> struct Wrap {};
+		// List<a, b, Wrap<c>> = [a, b, [c]] and thus
+		// List<a, b, Wrap<List<c, d>>> = [a, b, [c, d]]
+		template <class T> struct Wrap {};
 		struct Identifier {}; //identifiers
 		struct String {}; // string literals
 		struct Number {}; // numeric literals
@@ -157,7 +159,7 @@ export namespace Description {
 			// your form describes. In this case, it describes a list
 			// recursively composed of statements or other expressions.
 			using what = List<Ignore<Punctuation<'('>>,
-							  Optional<ArgumentList>,
+							  ArgumentList,
 							  Ignore<Punctuation<')'>>>;
 		};
 
@@ -172,8 +174,9 @@ export namespace Description {
 		template <> struct Describe<ArgumentList> {
 			// the same logic applies here. Clearly an argument list
 			// can't contain another argument list.
-			using what = Repeat<List<Argument,
-									   Optional<Ignore<Repeat<Punctuation<' '>>>>>>;
+			using what = List<Repeat<List<Argument,
+										  Ignore<Repeat<Punctuation<' '>>>>>,
+							  Optional<Argument>>;
 		};
 
 		template <> struct Describe<Name> {
@@ -189,11 +192,13 @@ export namespace Description {
 		};
 
 		template <> struct Describe<Composition> {
-			using what = List<Statement,
-							  Optional<ArgumentList>,
-							  Repeat<List<Punctuation<'|'>,
-										  Statement,
-									      Optional<ArgumentList>>>>;
+			using what = List<Ignore<Punctuation<'('>>,
+							  ArgumentList,
+							  Ignore<Punctuation<')'>>,
+							  Optional<Ignore<Repeat<Punctuation<' '>>>>,
+							  Ignore<Punctuation<'|'>>,
+							  Optional<Ignore<Repeat<Punctuation<' '>>>>,
+							  Wrap<Either<Composition, Statement>>>;
 		};
 
 		template <> struct Describe<Pattern> {
@@ -252,25 +257,16 @@ export namespace Description {
 		// fitting for identifiers, and some form of list as arguments.
 		template <class... Ts> struct State {};
 
-		// First is the first element in the parsed list.
-		// Rest is the rest of the list.
-		// both of them automatically get evaluated before being used.
-		struct First {};
-		struct Rest {};
+		// everything after this comment is just a default.
+		// change or remove it appropriately if you wish.
+
 
 		template <> struct Meaning<Statement> {
 			using what = State<Identifier, Repeat<Any>>;
 		};
 
-		template <> struct Meaning<Composition> {
-			using what = State<Identifier,
-							   Repeat<List<Repeat<Any>,
-										   Punctuation<'|'>,
-										   Identifier>>>;
-		};
-
 		// choose which Meaning specializations to use.
-		using ToEval = Either<Meaning<Statement>>;
+		using ToEval = Either<Identifier, Number, Boolean, Statement>;
 
 
 	}

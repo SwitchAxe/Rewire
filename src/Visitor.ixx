@@ -9,7 +9,7 @@ export module Visitor;
 import Types;
 import Description;
 import Parser;
-export namespace Visitor{
+export namespace Visitor {
 	using Generic = Types::Symbol<Types::Type::Function>::_Type;
 	using namespace Description::Eval;
 	namespace L = Description::Lexer;
@@ -61,7 +61,13 @@ export namespace Visitor{
 
 	template <class T> struct Visitor {
 		static std::optional<Generic> visit(Generic ast) {
-			return Visitor<T::what>::visit(ast);
+			return Visitor<Meaning<T>::what>::visit(ast);
+		}
+	};
+
+	template <> struct Visitor<Description::Eval::None> {
+		static std::optional<Generic> visit(Generic ast) {
+			return std::nullopt;
 		}
 	};
 
@@ -80,6 +86,45 @@ export namespace Visitor{
 		}
 	};
 
+	// base case
+	template <> struct Visitor<List<>> {
+		static std::optional<Generic> visit(Generic ast) {
+			if (!std::holds_alternative<Symbol<Type::List>>(ast))
+				return std::nullopt;
+			if (auto l = std::get<Symbol<Type::List>>(ast); l.value.empty())
+				return l;
+			return std::nullopt;
+		}
+	};
+
+	template <class T, class... Ts> struct Visitor<List<T, Ts...>> {
+		static std::optional<Symbol<Type::List>> visit(Generic ast) {
+			if (!std::holds_alternative<Symbol<Type::List>>(ast))
+				return std::nullopt;
+			auto l = std::get<Symbol<Type::List>>(ast);
+			auto got = Visitor<T>::visit(l.value.front());
+			if (got == std::nullopt) return std::nullopt;
+			if (l.value.empty()) return std::nullopt;
+			l.value.pop_front();
+			auto others = Visitor<List<Ts...>>::visit(l);
+			if (others == std::nullopt) return std::nullopt;
+			return (*got) + (*others);
+		}
+	};
+
+	template <class T, class... Ts> struct Visitor<List<Ignore<T>, Ts...>> {
+		static std::optional<Generic> visit(Generic ast) {
+			if (!std::holds_alternative<Symbol<Type::List>>(ast))
+				return std::nullopt;
+			auto l = std::get<Symbol<Type::List>>(ast);
+			if (l.value.empty()) return std::nullopt;
+			l.value.pop_front();
+			auto rest = Visitor<List<Ts...>>::visit(l);
+			return rest;
+		}
+	};
+
+
 	template <> struct Visitor<Identifier> {
 		static std::optional<Generic> visit(Generic ast) {
 			if (std::holds_alternative<Symbol<Type::Identifier>>(ast))
@@ -88,16 +133,44 @@ export namespace Visitor{
 		}
 	};
 
+	template <> struct Visitor<Number> {
+		static std::optional<Generic> visit(Generic ast) {
+			if (std::holds_alternative<Symbol<Type::Number>>(ast))
+				return ast;
+			return std::nullopt;
+		}
+	};
+
+	template <> struct Visitor<Boolean> {
+		static std::optional<Generic> visit(Generic ast) {
+			if (std::holds_alternative<Symbol<Type::Boolean>>(ast))
+				return ast;
+			return std::nullopt;
+		}
+	};
+
+	template <> struct Visitor<String> {
+		static std::optional<Generic> visit(Generic ast) {
+			if (std::holds_alternative<Symbol<Type::String>>(ast))
+				return ast;
+			return std::nullopt;
+		}
+	};
+
+
+	// forward declare
+	std::optional<Generic> evaluate(Generic ast);
+
 	template <> struct Visitor<Description::Eval::Any> {
 		static std::optional<Generic> visit(Generic ast) {
 			// check if we have a punctuation token...
 			if (!std::holds_alternative<Symbol<Type::Identifier>>(ast))
-				return ast;
+				return evaluate(ast);
 			auto id = std::get<Symbol<Type::Identifier>>(ast);
 			if (id.value.size() != 1) return ast;
 			if (Charset<L::Punctuations>::contains(id.value[0]))
 				return std::nullopt;
-			return ast;
+			return evaluate(ast);
 		}
 	};
 

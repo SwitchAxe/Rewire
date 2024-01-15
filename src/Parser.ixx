@@ -102,15 +102,12 @@ export namespace Parser {
 		}
 	};
 
-	template <class T, class... Us>
-	struct Parser<P::List<P::Repeat<T>, Us...>> {
+	template <class T> struct Parser<P::Wrap<T>> {
 		static std::optional<Symbol<Type::List>>
 		parse(std::vector<Lexer::Token> v, size_t& si) {
-			auto first_half = Parser<P::Repeat<T>>::parse(v, si);
-			if (first_half == std::nullopt) return std::nullopt;
-			auto second_half = Parser<P::List<Us...>>::parse(v, si);
-			if (second_half == std::nullopt) return std::nullopt;
-			return (*first_half) + (*second_half);
+			auto result = Parser<T>::parse(v, si);
+			if (result == std::nullopt) return std::nullopt;
+			return Symbol<Type::List>{.value = { *result }};
 		}
 	};
 
@@ -220,9 +217,9 @@ export namespace Parser {
 	template <> struct Charset<L::Either<>> {
 		static constexpr bool contains(char c) { return false; }
 	};
-	template <char C, char... Cs> struct Charset<L::Either<L::Punctuation<C>, L::Punctuation<Cs>...>> {
+	template <char... Cs> struct Charset<L::Either<L::Punctuation<Cs>...>> {
 		static constexpr bool contains(char c) {
-			return (c == C) || Charset<L::Either<L::Punctuation<Cs>...>>::contains(c);
+			return ((c == Cs) || ...);
 		}
 	};
 
@@ -265,9 +262,33 @@ export namespace Parser {
 		}
 	};
 
+	// the interface to the parser
+	template <class T> struct Parse {};
+
+
+	// base case
+	template <> struct Parse<L::Either<>> {
+		static std::optional<Generic> ast(std::vector<Lexer::Token> v) {
+			return std::nullopt;
+		}
+	};
+
+	// use this one.
+	template <class T, class... Ts> struct Parse<L::Either<T, Ts...>> {
+		static std::optional<Generic> ast(std::vector<Lexer::Token> v) {
+			size_t si = 0;
+			auto maybe = Parser<T>::parse(v, si);
+			if (maybe == std::nullopt)
+				return Parse<L::Either<Ts...>>::ast(v);
+			if (si < v.size())
+				return Parse<L::Either<Ts...>>::ast(v);
+			return maybe;
+		}
+	};
+
+	// an actual function provided for convenience.
 	std::optional<Generic> get_ast(std::vector<Lexer::Token> v) {
-		size_t start = 0;
-		return Parser<L::Forms>::parse(v, start);
+		return Parse<L::Forms>::ast(v);
 	}
 
 

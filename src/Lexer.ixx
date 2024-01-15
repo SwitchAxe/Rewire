@@ -123,8 +123,7 @@ export namespace Lexer {
 
 	// Lexing of repetitions ("any amount") of T
 	// (T is possibly a seq or other compound stuff)
-	template <class T>
-	struct Lexer<Any<T>> {
+	template <class T> struct Lexer<Any<T>> {
 		using type = Any<T>;
 		static std::vector<Token> lex(std::string s, int si) {
 			if (si > s.length()) return {Token{.is_end_token = true}};
@@ -208,6 +207,8 @@ export namespace Lexer {
 			auto ret = Lexer<T>::lex(s, si);
 			if (ret.empty()) return Lexer<Either<Ts...>>::lex(s, si);
 			if (ret[ret.size() - 1].error_field == true)
+				return Lexer<Either<Ts...>>::lex(s, si);
+			if (ret[ret.size() - 1].end_index < s.length())
 				return Lexer<Either<Ts...>>::lex(s, si);
 			return ret;
 		}
