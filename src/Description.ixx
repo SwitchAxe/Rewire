@@ -10,7 +10,13 @@ export namespace Description {
 		template <char C> struct Punctuation {};
 		template <class... Ts> struct Either {};
 		template <class... Ts> struct Seq {};
-		template <class... Ts> struct Not {}; // unimplemented
+
+		// You can freely use some default token types:
+		struct Identifier {};
+		struct Number {};
+		struct Boolean {}; // "true" and "false"
+		struct String {}; // string literals
+
 		// everything after this line can be freely customized!
 
 		// We need to define some punctuation and then
@@ -34,8 +40,8 @@ export namespace Description {
 									Punctuation<'$'>, Punctuation<'|'>,
 									Punctuation<' '>, Punctuation<'@'>,
 									Punctuation<')'>, Punctuation<'('>,
-									Punctuation<':'>, Punctuation<'\\'>,
-									Punctuation<'\n'>, Punctuation<'#'>>;
+									Punctuation<':'>, Punctuation<'#'>,
+									Punctuation<'<'>, Punctuation<'>'>>;
 
 		// modify these according to which newline token you want and
 		// which newline with continuation token you want.
@@ -51,15 +57,9 @@ export namespace Description {
 		using LineEndToken = Punctuation<'\n'>;
 		using LineContinuation = Punctuation<'\\'>;
 
-		// The only builtin section that's also a template.
-		template <class... Ts>
-		using EnableLineContinuation = Any<Either<Ts..., LineContinuation>>;
-
-		// an identifier
-		using Name = Any<Not<Punctuations>>;
-		using ArgumentList = Seq<Any<Seq<Name,
+		using ArgumentList = Seq<Any<Seq<Either<Identifier, Number, Boolean, String>,
 										 Punctuation<' '>>>,
-								 Name>;
+								 Either<Identifier, Number, Boolean, String>>;
 
 		using Statement = Seq<Punctuation<'('>,
 							  ArgumentList, // this doubles as a function call!
@@ -71,10 +71,16 @@ export namespace Description {
 						   Punctuation<' '>,
 						   Punctuation<'@'>,
 						   Punctuation<' '>,
-						   std::string>;
+						   Statement>;
+
+		using Clause = Either<Seq<Punctuation<'<'>, Number>,
+							  Seq<Identifier, Punctuation<'<'>, Number>,
+							  Seq<Punctuation<'>'>, Number>,
+							  Seq<Identifier, Punctuation<'>'>, Number>>;
+
 		using Pattern = Any<Seq<Punctuation<'|'>,
 								Any<Punctuation<' '>>,
-								Any<std::string>,
+								Clause,
 								Punctuation<':'>,
 								Any<Statement>>>;
 
@@ -83,24 +89,24 @@ export namespace Description {
 										Punctuation<'|'>,
 										Any<Punctuation<' '>>,
 										Statement>>>;
-		using FuncDefinition = Seq<Name,
-								   Any<Seq<Name,
+		using FuncDefinition = Seq<Identifier,
+								   Any<Seq<Identifier,
 										   Any<Punctuation<' '>>>>,
 								   Punctuation<'='>,
 								   Any<Statement>>;
 
-		using VariableDefinition = Seq<Name,
+		using VariableDefinition = Seq<Identifier,
 									   Any<Punctuation<' '>>,
 									   Punctuation<'='>,
 									   Any<Punctuation<' '>>,
-									   Either<Name,
+									   Either<Identifier,
 											  Statement,
 											  Composition,
 											  Pattern>>;
 
 		// edit this to enable the use of all the forms you wish to lex strings
 		// against.
-		using Forms =  Either<FuncDefinition, Name, Statement,
+		using Forms =  Either<FuncDefinition, Identifier, Statement,
 							  ArgumentList, Composition, Pattern, Lambda,
 							  VariableDefinition>;
 
@@ -121,10 +127,6 @@ export namespace Description {
 		// List<a, b, Wrap<c>> = [a, b, [c]] and thus
 		// List<a, b, Wrap<List<c, d>>> = [a, b, [c, d]]
 		template <class T> struct Wrap {};
-		struct Identifier {}; //identifiers
-		struct String {}; // string literals
-		struct Number {}; // numeric literals
-		struct Boolean {}; // bool literals: "true" and "false"
 		// ignore whatever token is found at that position in the
 		// tree (see the next structs), used primarily for punctuation
 		// in the default grammar, but it can be used for more complex
@@ -161,7 +163,7 @@ export namespace Description {
 
 		using Literal = Either<String, Number, Boolean>;
 
-		using Argument = Either<Statement, Literal, Name, Composition, Pattern>;
+		using Argument = Either<Literal, Identifier, Composition, Pattern>;
 
 
 		template <> struct Describe<Statement> {
@@ -174,7 +176,7 @@ export namespace Description {
 		};
 
 		template <> struct Describe<VariableDefinition> {
-			using what = List<Name,
+			using what = List<Identifier,
 							  Optional<Repeat<Punctuation<' '>>>,
 							  Punctuation<'='>,
 							  Optional<Repeat<Punctuation<' '>>>,
@@ -189,14 +191,10 @@ export namespace Description {
 							  Optional<Argument>>;
 		};
 
-		template <> struct Describe<Name> {
-			// Names are just Identifiers
-			using what = Not<Punctuations>;
-		};
 
 		template <> struct Describe<FuncDefinition> {
-			using what = List<Name,
-							  Optional<Repeat<Name>>,
+			using what = List<Identifier,
+							  Optional<Repeat<Identifier>>,
 							  Punctuation<'='>,
 							  Repeat<Argument>>;
 		};
@@ -213,7 +211,7 @@ export namespace Description {
 
 		template <> struct Describe<Pattern> {
 			using what = List<Punctuation<'#'>,
-							  Name,
+							  Identifier,
 							  Punctuation<':'>,
 							  Repeat<Statement>>;
 		};

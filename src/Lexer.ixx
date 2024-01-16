@@ -6,13 +6,14 @@ module;
 #include <iostream>
 #include <ranges>
 #include <string_view>
+#include <cmath>
 export module Lexer;
 import Description;
 export namespace Lexer {
 	// PUNCTUATION TOKENS CANNOT BE PART OF IDENTIFIERS!!!!!
 	using namespace Description::Lexer;
 
-	export namespace Split {
+	namespace Split {
 		template <class... Ts> struct Split {};
 
 		template <char... Cs> struct Split<Punctuation<Cs>...> {
@@ -34,22 +35,17 @@ export namespace Lexer {
 
 	struct Token {
 		std::string value;
-		bool is_identifier;
-		bool is_literal;
-		bool is_punct = false;
-		size_t end_index; // for the lexer only, it's where the symbol ends
-		int line; // for error handling
-		bool error_field = false;
-		bool is_end_token = false;
-
 	};
+
+	// some utility stuff to check for
+	// punctuation tokens.
 
 	template <class T> struct Check {};
 	template <char C> struct Check<Punctuation<C>> {
 		std::string s;
 		Check(std::string _s = "") : s(_s) {}
-		size_t find() {
-			size_t idx = s.find(C);
+		size_t find(size_t off = 0) {
+			size_t idx = s.find(C, off);
 			return idx;
 		}
 	};
@@ -58,190 +54,177 @@ export namespace Lexer {
 	struct Check<Either<Punctuation<Cs>...>> {
 		std::string s;
 		Check(std::string _s = "") : s(_s) {}
-		size_t find() {
+		size_t find(size_t off = 0) {
 			return (size_t) std::min(std::initializer_list<size_t>{
-				Check<Punctuation<Cs>>(s).find()...
+				Check<Punctuation<Cs>>(s).find(off)...
 			});
 		}
 	};
 
 	// an overload to make stuff a little easier
-	constexpr std::vector<Token> operator+(std::vector<Token> lhs,
-										   std::vector<Token> rhs) {
+	constexpr std::vector<std::string> operator+(std::vector<std::string> lhs,
+										   std::vector<std::string> rhs) {
 		lhs.insert(lhs.end(), rhs.begin(), rhs.end());
 		return lhs;
 	}
 
-	Token extract_punct(std::string s, char ch, size_t si) {
-		if (s[si] == ch) {
-			return Token{.value = std::string{ch},
-						 .is_identifier = true,
-						 .is_literal = false,
-						 .end_index = si+1,
-						 .line = 0};
-		}
-		return Token{.error_field = true};
- 	}
-
-	// token extraction functions
-	Token extract_word(std::string s, size_t si) {
-		if (si >= s.length()) return Token{.is_end_token = true};
-
-		// first check for a string literal
-		if (s[si] == '"') {
-			auto strlit_idx = s.find('"', si + 1);
-			if (strlit_idx != std::string::npos) {
-				auto ss = s.substr(si, strlit_idx - si + 1);
-				return Token{ .value = ss,
-							 .is_identifier = false,
-							 .is_literal = true,
-							 .end_index = strlit_idx + 1,
-							 .line = 0 };
-			}
-			return Token{ .error_field = true };
-		}
-		std::string str = s.substr(si);
-		size_t off = Check<Punctuations>(str).find();
-		if (off == 0) return Token{.error_field = true};
-		if (off == std::string::npos)
-			return Token{.value = str,
-						 .is_identifier = str[0] != '"',
-						 .is_literal = str[0] == '"',
-						 .end_index = off,
-						 .line = 0};
-
-		std::string tk = str.substr(0, off);
-		return Token{.value = tk,
-					 .is_identifier = tk[0] != '"',
-					 .is_literal = tk[0] == '"',
-					 .end_index = si + off,
-					 .line = 0};
-	}
-
-	template <class T>
-	struct Lexer { using type = Seq<>; };
-
-	// lexing by exclusion of character classes
-
-	template <> struct Lexer<Not<Punctuations>> {
-		using type = Not<Punctuations>;
-		static std::vector<Token> lex(std::string s, size_t si) {
-			return {extract_word(s, si)};
-		}
-	};
-
 
 	// for debugging
-	void print_tokens(std::string label, std::vector<Token> tks) {
-		std::cout << label << " { ";
+	std::string print_tokens(std::vector<std::string> tks) {
+		std::string s = "{ ";
 		for (auto tk : tks) {
-			if (tk.is_end_token) std::cout << "END ";
-			else if (tk.error_field) std::cout << "ERROR ";
-			else std::cout << tk.value << " ";
+			s += "'" + tk + "' ";
 		}
-		std::cout << "}\n";
+		s += "}";
+		return s;
 	}
 
-	// Lexing of repetitions ("any amount") of T
-	// (T is possibly a seq or other compound stuff)
+	// the actual lexer starts here.
+
+	template <class T> struct Lexer {};
+
 	template <class T> struct Lexer<Any<T>> {
-		using type = Any<T>;
-		static std::vector<Token> lex(std::string s, int si) {
-			if (si > s.length()) return {Token{.is_end_token = true}};
-			std::vector<Token> got = Lexer<T>::lex(s, si);
-			std::vector<Token> ret;
-			while ((got.back().error_field == false) &&
-				   (got.back().is_end_token == false)) {
-				ret = ret + got;
-				got = Lexer<T>::lex(s, got.back().end_index);
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			size_t cpy = si;
+			std::optional<std::vector<std::string>> got = Lexer<T>::lex(s, si);
+			if (got == std::nullopt) {
+				si = cpy;
+				return std::vector<std::string>{};
 			}
-			return ret;
+			cpy = si;
+			std::optional<std::vector<std::string>> next = Lexer<Any<T>>::lex(s, si);
+			if (next == std::nullopt) {
+				si = cpy;
+				return got;
+			}
+			return *got + *next;
 		}
 	};
-
-	// Lexing of strings
-
-	template <> struct Lexer<std::string> {
-		using type = std::string;
-		static std::vector<Token> lex(std::string s, int si) {
-			return {extract_word(s, si)};
-		}
-	};
-
-	// Lexing of punctuation characters
-	template <char C> struct Lexer<Punctuation<C>> {
-		using type = Punctuation<C>;
-		static constexpr std::vector<Token> lex(std::string s, int si) {
-			return {extract_punct(s, C, si)};
-		}
-	};
-
-
-	// Lexing of sequences
 
 	// base case of the recursion
-	template <class T> struct Lexer<Seq<T>> {
-		using type = Seq<T>;
-		static std::vector<Token> lex(std::string s, int si) {
-			std::vector<Token> ret = Lexer<T>::lex(s, si);
-			if (ret.empty()) return {Token{.is_end_token = true}};
-			auto last = ret.back();
-			if (last.error_field) return {Token{.error_field = true}};
-			return ret;
-		}
+	template <> struct Lexer<Seq<>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) { return std::vector<std::string>{}; }
 	};
-
-
 
 	template <class T, class... Ts> struct Lexer<Seq<T, Ts...>> {
-		using type = Seq<T, Ts...>;
-		static std::vector<Token> lex(std::string s, int si) {
-			std::vector<Token> ret = Lexer<T>::lex(s, si);
-			if (ret.empty()) return {Token{.error_field = true}};
-			auto last = ret.back();
-			if (last.error_field == true)
-				return {Token{.error_field = true}}; // error
-			if (last.end_index >= s.size()) return ret;
-			auto next = Lexer<Seq<Ts...>>::lex(s, last.end_index);
-			if (next.back().error_field) return {Token{.error_field = true}};
-			if (next.empty()) return {Token{.error_field = true}};
-			return ret + next;
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			std::optional<std::vector<std::string>> result = Lexer<T>::lex(s, si);
+			if (result == std::nullopt) return std::nullopt;
+			std::optional<std::vector<std::string>> next = Lexer<Seq<Ts...>>::lex(s, si);
+			if (next == std::nullopt) return std::nullopt;
+			return *result + *next;
 		}
 	};
 
-	// the main Lexer. This is used both for starting the parser
-	// (a 'Form' type is just an Either<...>) and to parse an inner
-	// Either<...>.
+	template <> struct Lexer<Identifier> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			if (si >= s.length()) return std::nullopt;
+			size_t off = Check<Punctuations>(s).find(si);
+			if (off == si) return std::nullopt;
+			std::string sub = s.substr(si, off - si);
+			si += off - si;
+			return { {sub} };
+		}
+	};
 
+	template <> struct Lexer<String> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			if (si >= s.length()) return std::nullopt;
+			if (s[si] != '"') return std::nullopt;
+			size_t off = s.find('"', si);
+			if (off == std::string::npos) return std::nullopt;
+			si += off;
+			std::string sub = s.substr(si, off);
+			return { {sub} };
+		}
+	};
+
+	template <> struct Lexer<Number> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			long long signed int n = 0;
+			if (si >= s.length()) return std::nullopt;
+			auto [ptr, ec] = std::from_chars(s.data() + si, s.data() + s.size(), n);
+			if (ptr == s.data() + si) return std::nullopt;
+			size_t len = n ? std::log10(std::abs(n)) + 1 : 1;
+			std::string sub = s.substr(si, len);
+			si += len;
+			return { {sub} };
+		}
+	};
+
+	template <> struct Lexer<Boolean> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			size_t start = si;
+			if (si >= s.length()) return std::nullopt;
+			si += 4;
+			if (s.substr(start, 4) == "true") return { {"true"} };
+			si += 1;
+			if (s.substr(start, 5) == "false") return { {"false"} };
+			return std::nullopt;
+		}
+	};
+
+	template <char C> struct Lexer<Punctuation<C>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			if (si >= s.length()) return std::nullopt;
+			if (s[si] != C) return std::nullopt;
+			si++;
+			return { {std::string{C}} };
+		}
+	};
+
+	// base case
 	template <> struct Lexer<Either<>> {
-		using type = Either<>;
-		static constexpr std::vector<Token> lex(std::string s, size_t si) {
-			return {Token{.error_field = true}};
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) { return std::nullopt; }
+	};
+
+	template <class T, class... Ts> struct Lexer<Either<T, Ts...>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			std::optional<std::vector<std::string>> maybe;
+			size_t cpy = si;
+			maybe = Lexer<T>::lex(s, si);
+			if (maybe == std::nullopt) return Lexer<Either<Ts...>>::lex(s, cpy);
+			return maybe;
 		}
 	};
 
-	template <class T, class... Ts>
-	struct Lexer<Either<T, Ts...>> {
-		using type = Either<T, Ts...>;
-		static constexpr std::vector<Token> lex(std::string s, size_t si) {
-			// try with T. if it fails, try recursively with Ts...
-			auto ret = Lexer<T>::lex(s, si);
-			if (ret.empty()) return Lexer<Either<Ts...>>::lex(s, si);
-			if (ret[ret.size() - 1].error_field == true)
-				return Lexer<Either<Ts...>>::lex(s, si);
-			if (ret[ret.size() - 1].end_index < s.length())
-				return Lexer<Either<Ts...>>::lex(s, si);
-			return ret;
+	// the actual interface to the lexer.
+
+	template <class T> struct Tokens {};
+
+	template <> struct Tokens<Either<>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s) {
+			return std::nullopt;
 		}
 	};
 
-	// a wrapper function for the user's convenience. You can also just
-	// use the first line of this as a standalone invocation, it does the
-	// same job.
-	std::optional<std::vector<Token>> tokenize(std::string s) {
-		auto lexed = Lexer<Forms>::lex(s, 0);
-		
-		return lexed;
+	template <class T, class... Ts> struct Tokens<Either<T, Ts...>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s) {
+			size_t start = 0;
+			std::optional<std::vector<std::string>> maybe;
+			maybe = Lexer<T>::lex(s, start);
+			if (maybe == std::nullopt) return Tokens<Either<Ts...>>::lex(s);
+			if (start < s.length()) return Tokens<Either<Ts...>>::lex(s);
+			return maybe;
+		}
+	};
+
+	// a function for convenience
+	std::optional<std::vector<std::string>> tokenize(std::string s) {
+		return Tokens<Forms>::lex(s);
 	}
+
 
 }

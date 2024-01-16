@@ -26,7 +26,7 @@ export namespace Parser {
 
 	template <class T> struct Parser {
 		static std::optional<Generic>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			return Parser<P::Describe<T>::what>::parse(v, si);
 		}
@@ -34,7 +34,7 @@ export namespace Parser {
 
 	template <> struct Parser<P::None> {
 		static std::optional<Generic>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			return std::nullopt;
 		}
 	};
@@ -76,7 +76,7 @@ export namespace Parser {
 	// base case
 	template <> struct Parser<P::List<>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			return Symbol<Type::List>{};
 		}
 	};
@@ -84,7 +84,7 @@ export namespace Parser {
 
 	template <class T, class... Ts> struct Parser<P::List<T, Ts...>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			auto got = Parser<T>::parse(v, si);
 			if (got == std::nullopt) return std::nullopt;
@@ -97,14 +97,14 @@ export namespace Parser {
 	template <class... Ts, class... Us>
 	struct Parser<P::List<P::List<Ts...>, Us...>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			return Parser<P::List<Ts..., Us...>>::parse(v, si);
 		}
 	};
 
 	template <class T> struct Parser<P::Wrap<T>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			auto result = Parser<T>::parse(v, si);
 			if (result == std::nullopt) return std::nullopt;
 			return Symbol<Type::List>{.value = { *result }};
@@ -113,7 +113,7 @@ export namespace Parser {
 
 	template <class T, class... Ts> struct Parser<P::List<P::Ignore<T>, Ts...>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			// Parse, but ignore the result
 			auto unused = Parser<T>::parse(v, si);
@@ -124,7 +124,7 @@ export namespace Parser {
 
 	template <class T, class... Ts> struct Parser<P::List<P::Optional<T>, Ts...>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			// silently move on if Optional<T> fails to parse.
 			size_t si_cpy = si;
@@ -141,7 +141,7 @@ export namespace Parser {
 
 	template <class T, class... Ts> struct Parser<P::List<P::Optional<P::Ignore<T>>, Ts...>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			auto unused = Parser<T>::parse(v, si);
 			return Parser<P::List<Ts...>>::parse(v, si);
@@ -150,7 +150,7 @@ export namespace Parser {
 
 	template <class T> struct Parser<P::Repeat<T>> {
 		static std::optional<Symbol<Type::List>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			// a Repeat parses pretty much the same as a list:
 			Symbol<Type::List> ret;
 			if (si >= v.size()) return std::nullopt;
@@ -167,20 +167,31 @@ export namespace Parser {
 
 	template <> struct Parser<P::String> {
 		static std::optional<Symbol<Type::String>>
-			parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
-			if (v[si].value[0] != '"') return std::nullopt;
-			auto s = v[si].value;
+			if (v[si][0] != '"') return std::nullopt;
+			auto s = v[si];
 			si++;
 			return Symbol<Type::String>{.value = s.substr(1, s.length() - 2)};
 		}
 	};
 
+	template <class T> struct Charset {};
+	template <> struct Charset<L::Either<>> {
+		static constexpr bool contains(char c) { return false; }
+	};
+
+	template <char... Cs> struct Charset<L::Either<L::Punctuation<Cs>...>> {
+		static constexpr bool contains(char c) {
+			return ((c == Cs) || ...);
+		}
+	};
+
 	template <> struct Parser<P::Identifier> {
 		static std::optional<Generic>
-			parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
-			std::string s = v[si].value;
+			std::string s = v[si];
 			si++;
 			return Symbol<Type::Identifier>{.value = s};
 		}
@@ -188,9 +199,9 @@ export namespace Parser {
 
 	template <> struct Parser<P::Number> {
 		static std::optional<Symbol<Type::Number>>
-			parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
-			auto s = v[si].value;
+			auto s = v[si];
 			si++;
 			signed long long int n = 0;
 			auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), n);
@@ -203,9 +214,9 @@ export namespace Parser {
 
 	template <> struct Parser<P::Boolean> {
 		static std::optional<Symbol<Type::Boolean>>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
-			std::string s = v[si].value;
+			std::string s = v[si];
 			si++;
 			if (s == "true") return Symbol<Type::Boolean>{.value = true};
 			if (s == "false") return Symbol<Type::Boolean>{.value = false};
@@ -213,47 +224,24 @@ export namespace Parser {
 		}
 	};
 
-	template <class T> struct Charset {};
-	template <> struct Charset<L::Either<>> {
-		static constexpr bool contains(char c) { return false; }
-	};
-	template <char... Cs> struct Charset<L::Either<L::Punctuation<Cs>...>> {
-		static constexpr bool contains(char c) {
-			return ((c == Cs) || ...);
-		}
-	};
-
-
-	template <> struct Parser<L::Not<L::Punctuations>> {
-		static std::optional<Generic>
-			parse(std::vector<Lexer::Token> v, size_t& si) {
-			if (v[si].value.length() > 1)
-				return Parser<P::Identifier>::parse(v, si);
-			if (Charset<L::Punctuations>::contains(v[si].value[0]))
-				return std::nullopt;
-			return Parser<P::Identifier>::parse(v, si);
-		}
-	};
-
-
 	template <char C> struct Parser<L::Punctuation<C>> {
 		static std::optional<Generic>
-			parse(std::vector<Lexer::Token> v, size_t& si) {
-			if (v[si].value != std::string{ C }) return std::nullopt;
+			parse(std::vector<std::string> v, size_t& si) {
+			if (v[si] != std::string{ C }) return std::nullopt;
 			return Parser<P::Identifier>::parse(v, si);
 		}
 	};
 
 	template <> struct Parser<L::Either<>> {
 		static std::optional<Generic>
-		parse(std::vector<Lexer::Token>, size_t&) {
+		parse(std::vector<std::string>, size_t&) {
 			return std::nullopt;
 		}
 	};
 
 	template <class T, class... Ts> struct Parser<L::Either<T, Ts...>> {
 		static std::optional<Generic>
-		parse(std::vector<Lexer::Token> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			size_t si_cpy = si;
 			auto ret = Parser<T>::parse(v, si);
 			if (ret != std::nullopt) return ret;
@@ -268,14 +256,14 @@ export namespace Parser {
 
 	// base case
 	template <> struct Parse<L::Either<>> {
-		static std::optional<Generic> ast(std::vector<Lexer::Token> v) {
+		static std::optional<Generic> ast(std::vector<std::string> v) {
 			return std::nullopt;
 		}
 	};
 
 	// use this one.
 	template <class T, class... Ts> struct Parse<L::Either<T, Ts...>> {
-		static std::optional<Generic> ast(std::vector<Lexer::Token> v) {
+		static std::optional<Generic> ast(std::vector<std::string> v) {
 			size_t si = 0;
 			auto maybe = Parser<T>::parse(v, si);
 			if (maybe == std::nullopt)
@@ -287,7 +275,7 @@ export namespace Parser {
 	};
 
 	// an actual function provided for convenience.
-	std::optional<Generic> get_ast(std::vector<Lexer::Token> v) {
+	std::optional<Generic> get_ast(std::vector<std::string> v) {
 		return Parse<L::Forms>::ast(v);
 	}
 
