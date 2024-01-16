@@ -4,12 +4,33 @@ module;
 #include <string>
 #include <optional>
 #include <iostream>
+#include <ranges>
+#include <string_view>
 export module Lexer;
 import Description;
-import Utility;
 export namespace Lexer {
 	// PUNCTUATION TOKENS CANNOT BE PART OF IDENTIFIERS!!!!!
 	using namespace Description::Lexer;
+
+	export namespace Split {
+		template <class... Ts> struct Split {};
+
+		template <char... Cs> struct Split<Punctuation<Cs>...> {
+			static constexpr std::vector<std::string> split(std::string s) {
+				return s |
+					   std::views::split(std::string{ Cs... }) |
+					   std::views::transform([](auto&& x) { return std::string_view{ x }; }) |
+					   std::views::transform([](std::string_view sv) { return std::string{ sv }; }) |
+					   std::ranges::to<std::vector<std::string>>();
+			}
+		};
+
+		std::vector<std::string> split_text(std::string s) {
+			std::vector<std::string> v = Split<LineContinuation, LineEndToken>::split(s);
+			const auto ss = v | std::views::join | std::ranges::to<std::string>();
+			return Split<LineEndToken>::split(ss);
+		}
+	}
 
 	struct Token {
 		std::string value;

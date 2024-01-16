@@ -8,7 +8,6 @@ module;
 #include <numeric>
 export module Builtins;
 import Types;
-import Utility;
 export namespace Builtins {
 	// a few basic operators
 	constexpr Types::Symbol<Types::Type::Number>
@@ -115,4 +114,4 @@ Symbol<Type::Function>::_Type Symbol<Type::Function>::eval() {
 					{ if constexpr (std::is_same_v<decltype(y), std::monostate>)
 									throw std::logic_error{ "Uncaught monostate" };
 					  else return y.eval(); }, x); }) |
-			Utility::To::to<decltype(this->value)>()}); }
+			std::ranges::to<decltype(this->value)>()}); }

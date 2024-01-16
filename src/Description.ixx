@@ -37,9 +37,19 @@ export namespace Description {
 									Punctuation<':'>, Punctuation<'\\'>,
 									Punctuation<'\n'>, Punctuation<'#'>>;
 
+		// modify these according to which newline token you want and
+		// which newline with continuation token you want.
+		// the newline with continuation token is basically
+		// a newline which does NOT end the current expression.
+		// print(a, b <newline>, c) is most likely invalid, since
+		// it produces two expressions: "print(a, b" and ",c", which
+		// then get lexed and parsed individually.
+		// with continuation, the newline token is ignored, so
+		// the above statement gets lexed and parsed whole,
+		// but the user can still write it on different lines for
+		// readability.
 		using LineEndToken = Punctuation<'\n'>;
-		using LineContinuation = Seq<Punctuation<'\\'>,
-									 Punctuation<'\n'>>;
+		using LineContinuation = Punctuation<'\\'>;
 
 		// The only builtin section that's also a template.
 		template <class... Ts>
@@ -236,12 +246,26 @@ export namespace Description {
 		// however, the structure must be followed.
 		// some examples will clarify this.
 
-		// The first Type is a function name.
-		// The subsequent two types are two lists, one of
-		// arguments to the function, and the other of
-		// statements of the function.
-		// delete/don't use this if your language doesn't have
-		// function definitions.
+		// Each T in Ts... is a token type.
+		// these tokens get scanned sequentially in the AST.
+		// if a List is met, a List is expected in the AST.
+		// each of these tokens can contain a Let<> (no type)
+		// which gets parsed following this rule:
+		// the first Let<T> found will be a function name.
+		// the subsequent n Let<> identifiers will be function parameters.
+		// after the last Let<> is found, the special
+		// LetEnd token is expected. This means that from that
+		// point onward, everything else is the body of the function.
+		// e.g.:
+		//Let<Let<>,
+		//	  Punctuation<'(>,
+		//	  Repeat<List<Let<>, Punctuation<' '>>>,
+		//    Punctuation<')>
+		//    LetEnd, Statement>
+		// defines a function like
+		// foo(a, b, c) ...
+		// where foo is an identifier, and
+		// a, b and c are parameters to the function.
 		template <class... Ts> struct Let {};
 
 		// In order the types are:
@@ -266,7 +290,7 @@ export namespace Description {
 		};
 
 		// choose which Meaning specializations to use.
-		using ToEval = Either<Identifier, Number, Boolean, Statement>;
+		using ToEval = Either<Identifier, Number, Boolean, String, Statement>;
 
 
 	}

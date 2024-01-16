@@ -3,7 +3,6 @@ module;
 #include <list>
 #include <variant>
 export module Types;
-import Utility;
 export namespace Types {
 	enum class Type {
 		Number,
