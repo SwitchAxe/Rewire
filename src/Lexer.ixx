@@ -9,6 +9,7 @@ module;
 #include <cmath>
 export module Lexer;
 import Description;
+import Strings;
 export namespace Lexer {
 	// PUNCTUATION TOKENS CANNOT BE PART OF IDENTIFIERS!!!!!
 	using namespace Description::Lexer;
@@ -178,6 +179,17 @@ export namespace Lexer {
 			if (s[si] != C) return std::nullopt;
 			si++;
 			return { {std::string{C}} };
+		}
+	};
+
+	template <Strings::String S> struct Lexer<Keyword<S>> {
+		static constexpr std::optional<std::vector<std::string>>
+		lex(std::string s, size_t& si) {
+			size_t len = std::string{ S }.length();
+			std::string sub = s.substr(si, len);
+			si += len;
+			if (sub == S) return { {sub} };
+			return std::nullopt;
 		}
 	};
 

@@ -3,11 +3,13 @@ module;
 #include <string>
 export module Description;
 import Types;
+import Strings;
 export namespace Description {
 	namespace Lexer {
 		// dont't change Any, Either, Seq or Not!
 		template <class T> struct Any {};
 		template <char C> struct Punctuation {};
+		template <Strings::String s> struct Keyword {};
 		template <class... Ts> struct Either {};
 		template <class... Ts> struct Seq {};
 
@@ -42,6 +44,13 @@ export namespace Description {
 									Punctuation<')'>, Punctuation<'('>,
 									Punctuation<':'>, Punctuation<'#'>,
 									Punctuation<'<'>, Punctuation<'>'>>;
+
+		// Now we need to add some language keywords. These are reserved for
+		// specific things in the language. These can be anything, not necessarily
+		// words composed of alphabet characters.
+		// these will be matched exactly by the lexer, and then
+		// the parser.
+		using Keywords = Either<Keyword<"->">, Keyword<"let">>;
 
 		// modify these according to which newline token you want and
 		// which newline with continuation token you want.
@@ -265,7 +274,7 @@ export namespace Description {
 		// where foo is an identifier, and
 		// a, b and c are parameters to the function.
 		template <class... Ts> struct Let {};
-
+		struct LetEnd;
 		// In order the types are:
 		// a type to use for the identifier;
 		// a type to use for the type of the variable;
@@ -288,7 +297,7 @@ export namespace Description {
 		};
 
 		// choose which Meaning specializations to use.
-		using ToEval = Either<Identifier, Number, Boolean, String, Statement>;
+		using ToEval = Either<Identifier, Literal, Statement>;
 
 
 	}
