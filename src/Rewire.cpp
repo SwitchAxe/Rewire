@@ -10,7 +10,7 @@ import Visitor;
 import Types;
 using Generic = Types::Symbol<Types::Type::Function>::_Type;
 int main() {
-	std::string input = "(plus 1 2 3) | (plus 3 4)\n(plus 1 2)";
+	std::string input = "let p a b = (plus a b)\n(p 1 2)";
 	for (std::string s : Lexer::Split::split_text(input)) {
 		auto try_tks = Lexer::tokenize(s);
 		if (try_tks == std::nullopt) {

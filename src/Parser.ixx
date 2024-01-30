@@ -12,6 +12,7 @@ export module Parser;
 import Lexer;
 import Description;
 import Types;
+import Strings;
 export namespace Parser {
 	// The parser is just a lexer with added functionality.
 	// Instead of returning us a token stream, it returns us
@@ -177,13 +178,17 @@ export namespace Parser {
 	};
 
 	template <class T> struct Charset {};
-	template <> struct Charset<L::Either<>> {
-		static constexpr bool contains(char c) { return false; }
-	};
-
 	template <char... Cs> struct Charset<L::Either<L::Punctuation<Cs>...>> {
 		static constexpr bool contains(char c) {
 			return ((c == Cs) || ...);
+		}
+	};
+
+	template <class T> struct Words {};
+
+	template <Strings::String... Ss> struct Words<L::Either<L::Keyword<Ss>...>> {
+		static constexpr bool contains(std::string s) {
+			return ((Ss == s) || ...);
 		}
 	};
 
@@ -192,6 +197,10 @@ export namespace Parser {
 		parse(std::vector<std::string> v, size_t& si) {
 			if (si >= v.size()) return std::nullopt;
 			std::string s = v[si];
+			if (Words<L::Keywords>::contains(s)) return std::nullopt;
+			if (s.length() == 1)
+				if (Charset<L::Punctuations>::contains(s[0]))
+					return std::nullopt;
 			si++;
 			return Symbol<Type::Identifier>{.value = s};
 		}
@@ -226,9 +235,21 @@ export namespace Parser {
 
 	template <char C> struct Parser<L::Punctuation<C>> {
 		static std::optional<Generic>
-			parse(std::vector<std::string> v, size_t& si) {
+		parse(std::vector<std::string> v, size_t& si) {
 			if (v[si] != std::string{ C }) return std::nullopt;
-			return Parser<P::Identifier>::parse(v, si);
+			std::string s = v[si];
+			si++;
+			return Symbol<Type::Identifier>{.value = s};
+		}
+	};
+
+	template <Strings::String S> struct Parser<L::Keyword<S>> {
+		static std::optional<Generic>
+		parse(std::vector<std::string> v, size_t& si) {
+			if (v[si] != S) return std::nullopt;
+			std::string s = v[si];
+			si++;
+			return Symbol<Type::Identifier>{.value = s};
 		}
 	};
 

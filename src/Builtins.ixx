@@ -6,8 +6,11 @@ module;
 #include <ranges>
 #include <stdexcept>
 #include <numeric>
+#include <optional>
 export module Builtins;
 import Types;
+import Globals;
+import Parser;
 export namespace Builtins {
 	// a few basic operators
 	constexpr Types::Symbol<Types::Type::Number>
@@ -75,43 +78,4 @@ export namespace Builtins {
 		{"rest", Functions::rest},
 		{"plus", Functions::plus}
 	};
-
-	// Call a builtin function (for user-defined functions, use
-	// the 'Invoke' namespace (NOT YET DEFINED, TODO)
-	namespace Call {
-		template <class C> struct Helper {};
-		using namespace Types;
-		using _Type = std::variant<Symbol<Type::Number>,
-								   Symbol<Type::Identifier>,
-								   Symbol<Type::Boolean>,
-								   Symbol<Type::List>,
-								   Symbol<Type::String>,
-								   Symbol<Type::Function>>;
-		Symbol<Type::Function>::_Type call(Symbol<Type::Function> f) {
-			auto ident = std::get<Symbol<Type::Identifier>>(f.value.front());
-			std::string name = ident.value;
-			f.value.pop_front();
-			// create a List Literal with the contents of the function call
-			// f:
-			Symbol<Type::List> l = {.value = f.value};
-			return procedures[name](l);
-		}
-	}
 }
-
-// temporary location for the eval() of function Symbols
-using namespace Types;
-Symbol<Type::Function>::_Type Symbol<Type::Function>::eval() {
-	using T = Symbol<Type::Function>::_Type;
-	return
-		Builtins::Call::call(Symbol<Type::Function>
-	{.value =
-			this->value |
-			std::ranges::views::transform(
-				[](auto x) -> T
-				{ return
-				std::visit([](auto y) -> T
-					{ if constexpr (std::is_same_v<decltype(y), std::monostate>)
-									throw std::logic_error{ "Uncaught monostate" };
-					  else return y.eval(); }, x); }) |
-			std::ranges::to<decltype(this->value)>()}); }

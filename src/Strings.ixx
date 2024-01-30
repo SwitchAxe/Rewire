@@ -7,7 +7,7 @@ export namespace Strings {
 		constexpr String(const char (&s)[N]) {
 			std::copy_n(s, N, buf);
 		}
-		auto operator<=>(const String&) const = default;
+		constexpr bool operator==(const std::string& s) const { return s == std::string{ buf }; }
 		constexpr operator std::string() const { return std::string{ buf }; }
 	};
 }

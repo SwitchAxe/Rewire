@@ -188,7 +188,7 @@ export namespace Lexer {
 			size_t len = std::string{ S }.length();
 			std::string sub = s.substr(si, len);
 			si += len;
-			if (sub == S) return { {sub} };
+			if (sub == static_cast<std::string>(S)) return { {sub} };
 			return std::nullopt;
 		}
 	};

@@ -98,10 +98,14 @@ export namespace Description {
 										Punctuation<'|'>,
 										Any<Punctuation<' '>>,
 										Statement>>>;
-		using FuncDefinition = Seq<Identifier,
+		using FuncDefinition = Seq<Keyword<"let">,
+								   Any<Punctuation<' '>>,
+								   Identifier,
+								   Any<Punctuation<' '>>,
 								   Any<Seq<Identifier,
 										   Any<Punctuation<' '>>>>,
 								   Punctuation<'='>,
+								   Any<Punctuation<' '>>,
 								   Any<Statement>>;
 
 		using VariableDefinition = Seq<Identifier,
@@ -172,7 +176,7 @@ export namespace Description {
 
 		using Literal = Either<String, Number, Boolean>;
 
-		using Argument = Either<Literal, Identifier, Composition, Pattern>;
+		using Argument = Either<Literal, Identifier, Statement, Composition, Pattern>;
 
 
 		template <> struct Describe<Statement> {
@@ -202,10 +206,13 @@ export namespace Description {
 
 
 		template <> struct Describe<FuncDefinition> {
-			using what = List<Identifier,
-							  Optional<Repeat<Identifier>>,
+			using what = List<Keyword<"let">,
+				              Ignore<Repeat<Punctuation<' '>>>,
+							  Optional<Repeat<List<Identifier,
+												   Ignore<Repeat<Punctuation<' '>>>>>>,
 							  Punctuation<'='>,
-							  Repeat<Argument>>;
+				              Optional<Ignore<Repeat<Punctuation<' '>>>>,
+							  Wrap<Statement>>;
 		};
 
 		template <> struct Describe<Composition> {
@@ -253,26 +260,28 @@ export namespace Description {
 		// however, the structure must be followed.
 		// some examples will clarify this.
 
-		// Each T in Ts... is a token type.
-		// these tokens get scanned sequentially in the AST.
-		// if a List is met, a List is expected in the AST.
-		// each of these tokens can contain a Let<> (no type)
-		// which gets parsed following this rule:
-		// the first Let<T> found will be a function name.
-		// the subsequent n Let<> identifiers will be function parameters.
-		// after the last Let<> is found, the special
-		// LetEnd token is expected. This means that from that
-		// point onward, everything else is the body of the function.
-		// e.g.:
-		//Let<Let<>,
-		//	  Punctuation<'(>,
-		//	  Repeat<List<Let<>, Punctuation<' '>>>,
-		//    Punctuation<')>
+		// the AST value found where this token type is found does not
+		// get evaluated. mostly used internally for function bodies but
+		// feel free to do wacky stuff with this.
+
+		template <class T> struct NoEval {};
+
+		// the first Let<> in a List defines a function name.
+		// all the subsequent Let<> BEFORE a LetEnd are its
+		// parameters. Anything after a LetEnd is considered
+		// as the function body, and is unevaluated in the
+		// definition (but it is of course evaluated when
+		// the function is called).
+		//List<Let<>,
+		//	  Ignore<Punctuation<'(>>,
+		//	  Repeat<List<Let<>, Ignore<Punctuation<' '>>>>,
+		//    Ignore<Punctuation<')>>
 		//    LetEnd, Statement>
 		// defines a function like
-		// foo(a, b, c) ...
+		// foo(a b c) ...
 		// where foo is an identifier, and
 		// a, b and c are parameters to the function.
+		// (identifiers CANNOT also be punctuation tokens.)
 		template <class... Ts> struct Let {};
 		struct LetEnd;
 		// In order the types are:
@@ -291,13 +300,31 @@ export namespace Description {
 		// everything after this comment is just a default.
 		// change or remove it appropriately if you wish.
 
+		// you can define "top level" types here which are basically
+		// macros:
+		// this is a procedure, which we describe as
+		// a sequence of statements.
+		struct Procedure {};
+
+		template <> struct Meaning<Procedure> {
+			using what = Repeat<Statement>;
+		};
 
 		template <> struct Meaning<Statement> {
 			using what = State<Identifier, Repeat<Any>>;
 		};
+		
+		template <> struct Meaning<FuncDefinition> {
+			using what = List<Ignore<Keyword<"let">>,
+							 Let<>,
+							 Repeat<Let<>>,
+							 Ignore<Punctuation<'='>>,
+							 LetEnd,
+							 Either<Literal, Statement, Repeat<Statement>>>;
+		};
 
 		// choose which Meaning specializations to use.
-		using ToEval = Either<Identifier, Literal, Statement>;
+		using ToEval = Either<Identifier, Literal, Statement, FuncDefinition, Procedure>;
 
 
 	}
